@@ -97,8 +97,12 @@ button.zweit{background:#fff;color:#16161A;border:1.5px solid var(--rand)}
 <div class="karte">
   <h2>Fotos</h2>
   <input id="datei" type="file" accept="image/*" multiple capture="environment"
-         style="border:none;padding:0;font-size:15px">
-  <div class="hinweis">Vorne, hinten, beide Seiten, Felgen. Je mehr, desto sicherer.</div>
+         style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+  <input id="dateiGalerie" type="file" accept="image/*" multiple
+         style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+  <button id="fotoKamera">Foto aufnehmen</button>
+  <button id="fotoGalerie" class="zweit">Aus der Galerie wählen</button>
+  <div class="hinweis" id="fotozahl">Vorne, hinten, beide Seiten, Felgen. Je mehr, desto sicherer.</div>
   <div id="fotos"></div>
 </div>
 
@@ -189,7 +193,9 @@ function uebergabeHinweis(){
 }
 
 /* --- Fotos --- */
-$("datei").addEventListener("change",e=>{
+$("fotoKamera").onclick=()=>$("datei").click();
+$("fotoGalerie").onclick=()=>$("dateiGalerie").click();
+function dateienLesen(e){
   const dateien=[...e.target.files];
   dateien.forEach(d=>{
     const leser=new FileReader();
@@ -208,13 +214,19 @@ $("datei").addEventListener("change",e=>{
     leser.readAsDataURL(d);
   });
   e.target.value="";
-});
+}
+$("datei").addEventListener("change",dateienLesen);
+$("dateiGalerie").addEventListener("change",dateienLesen);
 function fotosZeigen(){
   $("fotos").innerHTML=FOTOS.map((k,i)=>
     '<img src="'+k.toDataURL("image/jpeg",0.7)+'" data-i="'+i+'" alt="">').join("");
   [...$("fotos").querySelectorAll("img")].forEach(b=>{
     b.onclick=()=>{ if(confirm("Dieses Foto entfernen?")){ FOTOS.splice(+b.dataset.i,1); fotosZeigen(); } };
   });
+  const z=$("fotozahl");
+  if(z) z.textContent = FOTOS.length
+    ? FOTOS.length+(FOTOS.length===1?" Foto":" Fotos")+" dabei. Zum Entfernen antippen."
+    : "Vorne, hinten, beide Seiten, Felgen. Je mehr, desto sicherer.";
 }
 
 /* --- Unterschrift --- */
