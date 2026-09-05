@@ -103,6 +103,17 @@ button.zweit{background:#fff;color:#16161A;border:1.5px solid var(--rand)}
 </div>
 
 <div class="karte">
+  <h2>Unterschrift des Kunden</h2>
+  <canvas id="unterschrift" width="900" height="300"
+          style="width:100%;height:auto;border:1.5px dashed var(--rand);border-radius:12px;
+                 background:#fff;touch-action:none;display:block"></canvas>
+  <button id="uleeren" class="zweit" style="margin-top:8px">Unterschrift löschen</button>
+  <div class="hinweis">Mit dem Finger unterschreiben lassen. Bestätigt den oben
+    festgehaltenen Zustand. Ohne Unterschrift funktioniert das Protokoll auch,
+    mit Unterschrift ist es deutlich mehr wert.</div>
+</div>
+
+<div class="karte">
   <h2>Protokoll erzeugen</h2>
   <button id="bauen">Protokoll als Bild erzeugen</button>
   <button id="teilen" class="zweit">Bild teilen oder speichern</button>
@@ -206,6 +217,28 @@ function fotosZeigen(){
   });
 }
 
+/* --- Unterschrift --- */
+let UNTERSCHRIEBEN=false;
+(function(){
+  const k=$("unterschrift"), g=k.getContext("2d");
+  g.lineWidth=4; g.lineCap="round"; g.lineJoin="round"; g.strokeStyle="#16161A";
+  let malt=false;
+  function punkt(e){
+    const r=k.getBoundingClientRect();
+    const t=e.touches?e.touches[0]:e;
+    return [(t.clientX-r.left)*(k.width/r.width),(t.clientY-r.top)*(k.height/r.height)];
+  }
+  function start(e){ e.preventDefault(); malt=true; UNTERSCHRIEBEN=true;
+    const [x,y]=punkt(e); g.beginPath(); g.moveTo(x,y); }
+  function zieh(e){ if(!malt)return; e.preventDefault();
+    const [x,y]=punkt(e); g.lineTo(x,y); g.stroke(); }
+  function ende(){ malt=false; }
+  ["mousedown","touchstart"].forEach(ev=>k.addEventListener(ev,start,{passive:false}));
+  ["mousemove","touchmove"].forEach(ev=>k.addEventListener(ev,zieh,{passive:false}));
+  ["mouseup","mouseleave","touchend","touchcancel"].forEach(ev=>k.addEventListener(ev,ende));
+  $("uleeren").onclick=()=>{ g.clearRect(0,0,k.width,k.height); UNTERSCHRIEBEN=false; };
+})();
+
 /* --- Protokollbild --- */
 function protokoll(){
   const B=1080;
@@ -226,8 +259,9 @@ function protokoll(){
 
   const fotoReihen=Math.ceil(FOTOS.length/fotoSp);
   const fotoH=FOTOS.length?Math.round((B-96-24)/fotoSp*0.75):0;
+  const untH = UNTERSCHRIEBEN ? 230 : 0;
   const H = kopfH + zeilen.length*zeileH + 76 + schadenZeilen.length*46 + 40
-          + (FOTOS.length?(50+fotoReihen*(fotoH+16)):0) + 120;
+          + (FOTOS.length?(50+fotoReihen*(fotoH+16)):0) + untH + 120;
 
   const c=document.createElement("canvas");
   c.width=B; c.height=H;
@@ -282,6 +316,19 @@ function protokoll(){
     y+=fotoReihen*(fotoH+16);
   }
 
+  if(UNTERSCHRIEBEN){
+    y+=40;
+    g.fillStyle="#8A8A93"; g.font="700 24px Inter,Helvetica,Arial,sans-serif";
+    g.fillText("UNTERSCHRIFT DES KUNDEN", 48, y);
+    const uk=$("unterschrift");
+    const bw=Math.min(B-96, 640), bh=bw*uk.height/uk.width;
+    g.drawImage(uk, 48, y+16, bw, bh);
+    g.fillStyle="#E4E4E8"; g.fillRect(48, y+16+bh+6, bw, 2);
+    g.fillStyle="#6B6B73"; g.font="600 24px Inter,Helvetica,Arial,sans-serif";
+    g.fillText(($("kunde").value.trim()||"Kunde")
+      +" bestätigt den oben festgehaltenen Zustand.", 48, y+16+bh+40);
+    y+=16+bh+60;
+  }
   g.fillStyle="#6B6B73"; g.font="600 24px Inter,Helvetica,Arial,sans-serif";
   g.fillText("Mietix Sportwagenvermietung  |  Zustand bei der "+gewaehlt("art")
              +", festgehalten am "+stempel, 48, H-46);
@@ -299,6 +346,7 @@ $("bauen").onclick=()=>{
     schreiben("mietixUebergabe",u);
   }
   kennzeichenMerken();
+  entwurfLoeschen();
   $("bauen").textContent="Protokoll erzeugt";
   setTimeout(()=>{$("bauen").textContent="Protokoll als Bild erzeugen";},1600);
 };
@@ -318,6 +366,40 @@ $("teilen").onclick=async()=>{
   },"image/jpeg",0.9);
 };
 
+/* --- Entwurf sichern, damit eine gesperrte Bildschirmsperre nichts kostet.
+   Fotos und Unterschrift bleiben bewusst aussen vor, die waeren zu gross. --- */
+function entwurfSichern(){
+  try{
+    localStorage.setItem("mietixUebergabeEntwurf", JSON.stringify({
+      art:gewaehlt("art"), auto:$("auto").value, kennzeichen:$("kennzeichen").value,
+      kunde:$("kunde").value, km:$("km").value, tank:gewaehlt("tank"),
+      sauber:gewaehlt("sauber"), schaden:$("schaden").value, zonen:[...MARKIERT],
+      zeit:Date.now()
+    }));
+  }catch(e){}
+}
+function entwurfHolen(){
+  let e=null;
+  try{ e=JSON.parse(localStorage.getItem("mietixUebergabeEntwurf")||"null"); }catch(x){}
+  if(!e || Date.now()-e.zeit > 12*60*60*1000) return;   // nach 12 Stunden verfallen
+  const setzeChip=(gruppe,wert)=>{
+    const c=[...$(gruppe).querySelectorAll(".chip")].find(x=>x.dataset.w===wert);
+    if(c){ [...$(gruppe).querySelectorAll(".chip")].forEach(x=>x.classList.remove("an"));
+           c.classList.add("an"); }
+  };
+  if(e.art)setzeChip("art",e.art);
+  if(e.auto)$("auto").value=e.auto;
+  ["kennzeichen","kunde","km","schaden"].forEach(k=>{ if(e[k])$(k).value=e[k]; });
+  if(e.tank)setzeChip("tank",e.tank);
+  if(e.sauber)setzeChip("sauber",e.sauber);
+  (e.zonen||[]).forEach(id=>{
+    MARKIERT.add(id);
+    const r=document.querySelector('#skizze .zone[data-id="'+id+'"]');
+    if(r)r.classList.add("an");
+  });
+}
+function entwurfLoeschen(){ try{ localStorage.removeItem("mietixUebergabeEntwurf"); }catch(e){} }
+
 /* --- Start --- */
 function autosFuellen(){
   const vorher=$("auto").value;
@@ -330,7 +412,13 @@ chips("art",()=>uebergabeHinweis());
 chips("tank"); chips("sauber");
 autosFuellen();
 $("auto").addEventListener("change",()=>{ $("kennzeichen").value=""; kennzeichenHolen(); uebergabeHinweis(); });
-$("kennzeichen").addEventListener("input",kennzeichenMerken);
+$("kennzeichen").addEventListener("input",()=>{kennzeichenMerken();entwurfSichern();});
+["kunde","km","schaden"].forEach(id=>$(id).addEventListener("input",entwurfSichern));
+$("auto").addEventListener("change",entwurfSichern);
+document.querySelectorAll("#art .chip,#tank .chip,#sauber .chip")
+  .forEach(c=>c.addEventListener("click",entwurfSichern));
+$("skizze").addEventListener("click",entwurfSichern);
+entwurfHolen(); uebergabeHinweis();
 try{
   fetch("https://barankohler.github.io/mietix-preise/preise.json",{cache:"no-store"})
     .then(r=>r.ok?r.json():null)
