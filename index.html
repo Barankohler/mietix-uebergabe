@@ -388,7 +388,7 @@ function entwurfHolen(){
            c.classList.add("an"); }
   };
   if(e.art)setzeChip("art",e.art);
-  if(e.auto)$("auto").value=e.auto;
+  if(e.auto){ GEWUENSCHT=e.auto; $("auto").value=e.auto; }
   ["kennzeichen","kunde","km","schaden"].forEach(k=>{ if(e[k])$(k).value=e[k]; });
   if(e.tank)setzeChip("tank",e.tank);
   if(e.sauber)setzeChip("sauber",e.sauber);
@@ -401,10 +401,11 @@ function entwurfHolen(){
 function entwurfLoeschen(){ try{ localStorage.removeItem("mietixUebergabeEntwurf"); }catch(e){} }
 
 /* --- Start --- */
+let GEWUENSCHT="";
 function autosFuellen(){
-  const vorher=$("auto").value;
+  const vorher=GEWUENSCHT || $("auto").value;
   $("auto").innerHTML=AUTOS.map(a=>'<option>'+a.n+'</option>').join("");
-  if(vorher && AUTOS.some(a=>a.n===vorher)) $("auto").value=vorher;
+  if(vorher && AUTOS.some(a=>a.n===vorher)){ $("auto").value=vorher; GEWUENSCHT=""; }
   kennzeichenHolen(); uebergabeHinweis();
 }
 skizze();
